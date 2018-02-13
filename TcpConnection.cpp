@@ -7,16 +7,20 @@
 
 CTcpConnection::CTcpConnection():
     m_sock(-1),
+    m_type(TCP_CONN_TYPE_NONE),
     m_multi_plexer(NULL)
 {
     memset(&m_addr_info, 0, sizeof(m_addr_info));
 }
 
-CTcpConnection::CTcpConnection(sockaddr_in *addr_info, IMultiPlexer *multi_plexer):
+CTcpConnection::CTcpConnection(sockaddr_in *addr_info, int type, IMultiPlexer *multi_plexer):
     m_sock(-1),
+    m_type(TCP_CONN_TYPE_NONE),
     m_multi_plexer(multi_plexer),
     m_addr_info(*addr_info)
 {
+    if (type == TCP_CONN_TYPE_SERVER || type == TCP_CONN_TYPE_CLIENT)
+        m_type = type;
 }
 
 CTcpConnection::~CTcpConnection()
@@ -30,6 +34,8 @@ CTcpConnection::~CTcpConnection()
 
 int CTcpConnection::start(IMultiPlexer *multi_plexer)
 {
+    if (m_type == TCP_CONN_TYPE_NONE)
+        return -1;
     return 0;
 }
 
@@ -53,7 +59,10 @@ int CTcpConnection::handle_read(IIoHandler **h)
             break;
         }
 
-        if (on_data(m_read_buf, nread) != 0)
+        if (m_type == TCP_CONN_TYPE_SERVER && on_server_data(m_read_buf, nread))
+            return -1;
+
+        if (m_type == TCP_CONN_TYPE_CLIENT && on_client_data(m_read_buf, nread))
             return -1;
     }
     return 0;
@@ -69,23 +78,29 @@ int CTcpConnection::handle_error()
     return 0;
 }
 
-int CTcpConnection::on_data(char *buf, int size)
+int CTcpConnection::on_server_data(char *buf, int size)
 {
     return 0;
 }
 
-CTcpConnection *CTcpConnection::instance_from_sock(int sock, IMultiPlexer *multi_plexer)
+int CTcpConnection::on_client_data(char *buf, int size)
+{
+    return 0;
+}
+
+CTcpConnection *CTcpConnection::instance_from_sock(int sock, int type, IMultiPlexer *multi_plexer)
 {
     CTcpConnection *conn = NULL;
 
     sockaddr_in sock_addr;
     socklen_t sock_len;
-    if (getpeername(sock, (sockaddr *)&sock_addr, &sock_len) == 0 && multi_plexer)
+    if (getpeername(sock, (sockaddr *)&sock_addr, &sock_len) == 0 && multi_plexer && (type == TCP_CONN_TYPE_SERVER || type == TCP_CONN_TYPE_CLIENT))
     {
         conn = new CTcpConnection;
         if (conn)
         {
             conn->m_sock = sock;
+            conn->m_type = type;
             conn->m_addr_info = sock_addr;
             conn->m_multi_plexer = multi_plexer;
         }

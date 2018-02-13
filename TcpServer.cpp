@@ -110,7 +110,7 @@ int CTcpServer::handle_read(IIoHandler **h)
 
     if (h && m_factory)
     {
-        *h = m_factory->create(client_sock, m_multi_plexer);
+        *h = m_factory->create(client_sock, TCP_CONN_TYPE_SERVER, m_multi_plexer);
         if (*h)
             return client_sock;
     }

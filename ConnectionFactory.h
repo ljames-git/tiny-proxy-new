@@ -7,7 +7,7 @@
 class IConnectionFactory
 {
 public:
-    virtual IIoHandler *create(int sock, IMultiPlexer *multi_plexer) = 0;
+    virtual IIoHandler *create(int sock, int type, IMultiPlexer *multi_plexer) = 0;
 };
 
 #endif //__CONNECTION_FACTORY_H__
