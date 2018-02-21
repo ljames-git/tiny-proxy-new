@@ -16,6 +16,7 @@ public:
 public:
     // implementations of IMultiPlexer interface
     virtual int clear_fd(int fd);
+    virtual int clear_write_fd(int fd);
     virtual int set_timeout(int milli_sec);
     virtual int set_read_fd(int fd, IIoHandler *handler);
     virtual int set_write_fd(int fd, IIoHandler *handler);

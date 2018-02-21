@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -30,12 +31,45 @@ CTcpConnection::~CTcpConnection()
         close(m_sock);
         m_sock = -1;
     }
+
+    if (m_chunk_queue.size() > 0)
+    {
+        delete(m_chunk_queue.front());
+        m_chunk_queue.pop();
+    }
 }
 
 int CTcpConnection::start(IMultiPlexer *multi_plexer)
 {
-    if (m_type == TCP_CONN_TYPE_NONE)
+    if (multi_plexer)
+        m_multi_plexer = multi_plexer;
+
+    if (m_type != TCP_CONN_TYPE_CLIENT || !m_multi_plexer || m_sock != -1)
         return -1;
+
+    // socket
+    ASSIGN_AND_ERROR_ON_NEG(m_sock, socket(AF_INET, SOCK_STREAM, 0));
+
+    // nonblock socket
+    int flags = fcntl(m_sock, F_GETFL, 0);
+    fcntl(m_sock, F_SETFL, flags|O_NONBLOCK);
+
+    if (connect(m_sock, (const sockaddr *)&m_addr_info, sizeof(m_addr_info)) < 0 && errno != EINPROGRESS)
+        return -1;
+
+    m_multi_plexer->set_write_fd(m_sock, this);
+
+    return 0;
+}
+
+int CTcpConnection::chunk_write(void *data, int size, int last)
+{
+    if (!data || size <= 0)
+        return -1;
+
+    CChunkData *chunk_data = new CChunkData(data, size, last);
+    m_chunk_queue.push(chunk_data);
+    m_multi_plexer->set_write_fd(m_sock, this);
     return 0;
 }
 
@@ -70,6 +104,46 @@ int CTcpConnection::handle_read(IIoHandler **h)
 
 int CTcpConnection::handle_write(IIoHandler **h)
 {
+    if (m_chunk_queue.size() <= 0)
+    {
+        m_multi_plexer->clear_write_fd(m_sock);
+        return 0;
+    }
+
+    for (CChunkData *chunk_data = m_chunk_queue.front(); chunk_data; chunk_data = m_chunk_queue.front())
+    {
+        for (int start = chunk_data->m_offset, to_write = chunk_data->m_size - chunk_data->m_offset;
+             to_write > 0;
+             start = chunk_data->m_offset, to_write = chunk_data->m_size - chunk_data->m_offset)
+        {
+            int nwrite = write(m_sock, (char *)chunk_data->m_data + start, to_write);
+            if (nwrite < 0)
+            {
+                if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+                {
+                    LOG_WARN("read error on sock: %d", m_sock);
+                    return -1;
+                }
+                return 0;
+            }
+
+            chunk_data->m_offset += nwrite;
+        }
+
+        int last = chunk_data->m_last;
+        delete chunk_data;
+
+        m_chunk_queue.pop();
+        if (m_chunk_queue.size() <= 0)
+        {
+            if (last)
+                write_done();
+
+            m_multi_plexer->clear_write_fd(m_sock);
+            break;
+        }
+    }
+
     return 0;
 }
 
@@ -84,6 +158,11 @@ int CTcpConnection::on_server_data(char *buf, int size)
 }
 
 int CTcpConnection::on_client_data(char *buf, int size)
+{
+    return 0;
+}
+
+int CTcpConnection::write_done()
 {
     return 0;
 }

@@ -64,6 +64,15 @@ int CSelectModel::set_write_fd(int fd, IIoHandler *handler)
     return 0;
 }
 
+int CSelectModel::clear_write_fd(int fd)
+{
+    if (fd < 0 || fd >= FD_SETSIZE)
+        return -1;
+
+    FD_CLR(fd, &m_write_set);
+    return 0;
+}
+
 int CSelectModel::clear_fd(int fd)
 {
     if (fd < 0 || fd >= FD_SETSIZE)
@@ -163,6 +172,15 @@ int CSelectModel::run()
                         close(fd);
                         clear_fd(fd);
                         continue;
+                    }
+
+                    IIoHandler *h = NULL;
+                    ret = handler->handle_write(&h);
+                    if (ret < 0)
+                    {
+                        close(fd);
+                        clear_fd(fd);
+                        delete handler;
                     }
                 }
             }

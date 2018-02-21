@@ -117,6 +117,7 @@ int CHttpConnection::on_server_data(char *buf, int size)
 
 int CHttpConnection::on_client_data(char *buf, int size)
 {
+    fprintf(stderr, "%s", buf);
     return 0;
 }
 

@@ -1,8 +1,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 #include "common.h"
 #include "Utility.h"
@@ -159,8 +159,10 @@ int CTcpServer::start(IMultiPlexer *multi_plexer)
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);  
     serv_addr.sin_port = htons(m_port);  
 
+    // set reuse
     int opt = 1;
     setsockopt(m_serv_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
     ERROR_ON_NEG(bind(m_serv_sock, (struct sockaddr*)&serv_addr, sizeof(struct sockaddr_in))); 
 
     // listen
