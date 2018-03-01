@@ -1,9 +1,21 @@
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "common.h"
+#include "Utility.h"
 #include "StringUtil.h"
 #include "HttpConnection.h"
+
+const char *CHttpConnection::m_method_map[HTTP_MEHTOD_SIZE] = 
+{
+    "",
+    "OPTIONS",
+    "GET",
+    "POST",
+    "CONNECT",
+    "HEAD"
+};
 
 CHttpConnection::CHttpConnection():
     m_recv_state(RECV_STATE_HEADER),
@@ -12,13 +24,14 @@ CHttpConnection::CHttpConnection():
     m_header_item_offset(0),
     m_body_offset(0),
     m_method(HTTP_METHOD_NONE),
-    m_uri_size(0),
     m_body_size(0),
+    m_parent_connection(NULL),
+    m_child_connection(NULL),
     m_body(NULL)
 {
 }
 
-CHttpConnection::CHttpConnection(sockaddr_in *addr_info, int type, IMultiPlexer *multi_plexer):
+CHttpConnection::CHttpConnection(sockaddr_in *addr_info, int type, CHttpConnection *manager, IMultiPlexer *multi_plexer):
     CTcpConnection(addr_info, type, multi_plexer),
     m_recv_state(RECV_STATE_HEADER),
     m_header_size(0),
@@ -26,19 +39,101 @@ CHttpConnection::CHttpConnection(sockaddr_in *addr_info, int type, IMultiPlexer 
     m_header_item_offset(0),
     m_body_offset(0),
     m_method(HTTP_METHOD_NONE),
-    m_uri_size(0),
     m_body_size(0),
+    m_parent_connection(manager),
+    m_child_connection(NULL),
     m_body(NULL)
 {
 }
 
 CHttpConnection::~CHttpConnection()
 {
+    if (m_parent_connection)
+        m_parent_connection->manage(get_sock(), 0);
+
+    if (m_child_connection)
+        delete m_child_connection;
+
     if (!m_body)
     {
         delete []m_body;
         m_body = NULL;
     }
+}
+
+int CHttpConnection::server_req_done()
+{
+    std::map<std::string, std::string>::iterator iter = m_req_header.find("Host");
+    if (iter == m_req_header.end())
+    {
+        LOG_WARN("no host field, uri: %s", m_uri);
+        return -1;
+    }
+    
+    sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(80);
+    addr.sin_addr.s_addr = CUtility::host2randip(m_req_header["Host"].c_str());
+    CHttpConnection *http_client = new CHttpConnection(&addr, TCP_CONN_TYPE_CLIENT, this);
+    if (!http_client)
+    {
+        LOG_WARN("new http_client error, not enough memory, uri: %s", m_uri);
+        return -1;
+    }
+
+    m_child_connection = http_client;
+
+    // write request first line
+    char line[HTTP_HEADER_MAX_SIZE];
+    const char *req_version = "HTTP/1.0";
+    snprintf(line, sizeof(line), "%s %s %s\r\n", m_method_map[m_method], m_uri, req_version);
+    if (http_client->chunk_write(line, strlen(line)) != 0)
+    {
+        LOG_WARN("chunk write error, line:%s, uri: %s", line, m_uri);
+        delete http_client;
+        return -1;
+    }
+
+    // write other header lines
+    for (std::map<std::string, std::string>::iterator it = m_req_header.begin(); it != m_req_header.end(); it++)
+    {
+        if (it->first == "Connection" || it->first == "Proxy-Connection")
+            continue;
+
+        snprintf(line, sizeof(line), "%s: %s\r\n", (it->first).c_str(), (it->second).c_str());
+        if (http_client->chunk_write(line, strlen(line)) != 0)
+        {
+            LOG_WARN("chunk write error, line:%s, uri: %s", line, m_uri);
+            delete http_client;
+            return -1;
+        }
+    }
+
+    // write the end of header
+    char header_end[] = "\r\n";
+    if (http_client->chunk_write(header_end, strlen(header_end)) != 0)
+    {
+        LOG_WARN("chunk write error, end, uri: %s", m_uri);
+        delete http_client;
+        return -1;
+    }
+
+    // write body if exists
+    if (m_body && m_body_size > 0 && http_client->chunk_write(m_body, m_body_size) != 0)
+    {
+        LOG_WARN("chunk write error, body, uri: %s", m_uri);
+        delete http_client;
+        return -1;
+    }
+
+    if (http_client->start(m_multi_plexer) != 0)
+    {
+        LOG_WARN("http client start error, errno: %d, uri: %s", errno, m_uri);
+        delete http_client;
+        return -1;
+    }
+
+    return 0;
 }
 
 int CHttpConnection::on_server_data(char *buf, int size)
@@ -103,12 +198,7 @@ int CHttpConnection::on_server_data(char *buf, int size)
         if (m_body_size >= content_length)
         {
             m_recv_state = RECV_STATE_DONE;
-            /*
-            for (std::map<std::string, std::string>::iterator it = m_req_header.begin(); it != m_req_header.end(); it++)
-            {
-                LOG_INFO("%s: %s", const_cast<char *>((it->first).c_str()), const_cast<char *>((it->second).c_str()));
-            }
-            */
+            return server_req_done();
         }
     }
 
@@ -117,12 +207,25 @@ int CHttpConnection::on_server_data(char *buf, int size)
 
 int CHttpConnection::on_client_data(char *buf, int size)
 {
-    fprintf(stderr, "%s", buf);
+    /*
+    char *b = new char[size + 1];
+    memcpy(b, buf, size);
+    b[size] = 0;
+    fprintf(stderr, "%s", b);
+    delete []b;
+    */
+
+    if (m_parent_connection && m_parent_connection->chunk_write(buf, size) != 0)
+        return -1;
+
     return 0;
 }
 
 int CHttpConnection::manage(int sock, int status)
 {
+    if (m_child_connection && m_child_connection->get_sock() == sock)
+        m_child_connection = NULL;
+
     return 0;
 }
 
@@ -156,12 +259,15 @@ int CHttpConnection::parse_req_header()
                     return -1;
                 *t = 0;
                 char *method = CStringUtil::trim(q);
-                if (strcmp(method, "OPTIONS") == 0) m_method = HTTP_METHOD_OPTIONS;
-                else if (strcmp(method, "GET") == 0) m_method = HTTP_METHOD_GET;
-                else if (strcmp(method, "POST") == 0) m_method = HTTP_METHOD_POST;
-                else if (strcmp(method, "CONNECT") == 0) m_method = HTTP_METHOD_CONNECT;
-                else if (strcmp(method, "HEAD") == 0) m_method = HTTP_METHOD_HEAD;
-                else
+                for (int i = 0; i < HTTP_MEHTOD_SIZE; i++)
+                {
+                    if (strcmp(method, m_method_map[i]) == 0)
+                    {
+                        m_method = i;
+                        break;
+                    }
+                }
+                if (m_method == HTTP_METHOD_NONE)
                 {
                     LOG_WARN("unsupported method: %s", method);
                     return -1;

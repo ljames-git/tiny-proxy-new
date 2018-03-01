@@ -16,12 +16,13 @@
 #define HTTP_METHOD_POST 3
 #define HTTP_METHOD_CONNECT 4
 #define HTTP_METHOD_HEAD 5
+#define HTTP_MEHTOD_SIZE 6
 
 class CHttpConnection: public CTcpConnection, public IConnectionManager
 {
 public:
     CHttpConnection();
-    CHttpConnection(sockaddr_in *addr_info, int type, IMultiPlexer *multi_plexer = NULL);
+    CHttpConnection(sockaddr_in *addr_info, int type, CHttpConnection *manager = NULL, IMultiPlexer *multi_plexer = NULL);
     virtual ~CHttpConnection();
 
     virtual int manage(int sock, int status);
@@ -34,6 +35,7 @@ protected:
 
 private:
     int parse_req_header();
+    int server_req_done();
 
 public:
     std::map<std::string, std::string> m_req_header;
@@ -51,11 +53,16 @@ private:
     int m_header_item_offset;   // offset of next header item
     int m_body_offset;          // body offset in header buffer
     int m_method;
-    int m_uri_size;
     int m_body_size;
+
+    CHttpConnection *m_parent_connection;
+    CHttpConnection *m_child_connection;
+
     char *m_body;
     char m_uri[HTTP_URI_MAX_SIZE];
     char m_header_buf[HTTP_HEADER_MAX_SIZE];
+
+    static const char *m_method_map[HTTP_MEHTOD_SIZE];
 };
 
 #endif //__HTTP_CONNECTION_H__

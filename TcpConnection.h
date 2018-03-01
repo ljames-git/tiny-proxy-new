@@ -3,6 +3,7 @@
 
 #include <queue>
 #include <stdlib.h>
+#include <string.h>
 #include <arpa/inet.h>
 
 #include "IoHandler.h"
@@ -35,6 +36,7 @@ public:
             m_data = malloc(size);
             if (m_data)
                 m_size = size;
+            memcpy(m_data, data, size);
         }
     }
     ~CChunkData()
@@ -56,6 +58,7 @@ public:
     CTcpConnection(sockaddr_in *addr_info, int type, IMultiPlexer *multi_plexer = NULL);
     virtual ~CTcpConnection();
 
+    int get_sock() { return m_sock; };
     int start(IMultiPlexer *multi_plexer = NULL);
     int chunk_write(void *data, int size, int last = 0);
 

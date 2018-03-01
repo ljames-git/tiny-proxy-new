@@ -28,6 +28,11 @@ CTcpConnection::~CTcpConnection()
 {
     if (m_sock >= 0)
     {
+        if (m_multi_plexer)
+        {
+            m_multi_plexer->clear_fd(m_sock);
+        }
+
         close(m_sock);
         m_sock = -1;
     }
@@ -58,6 +63,7 @@ int CTcpConnection::start(IMultiPlexer *multi_plexer)
         return -1;
 
     m_multi_plexer->set_write_fd(m_sock, this);
+    m_multi_plexer->set_read_fd(m_sock, this);
 
     return 0;
 }
@@ -67,9 +73,15 @@ int CTcpConnection::chunk_write(void *data, int size, int last)
     if (!data || size <= 0)
         return -1;
 
+    //fwrite(data, size, 1, stderr);
+    //return 0;
+
     CChunkData *chunk_data = new CChunkData(data, size, last);
     m_chunk_queue.push(chunk_data);
-    m_multi_plexer->set_write_fd(m_sock, this);
+
+    if (m_sock >= 0 && m_multi_plexer)
+        m_multi_plexer->set_write_fd(m_sock, this);
+
     return 0;
 }
 
@@ -121,7 +133,7 @@ int CTcpConnection::handle_write(IIoHandler **h)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
                 {
-                    LOG_WARN("read error on sock: %d", m_sock);
+                    LOG_WARN("write error on sock: %d", m_sock);
                     return -1;
                 }
                 return 0;
