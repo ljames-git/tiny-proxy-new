@@ -85,7 +85,7 @@ int CHttpConnection::server_req_done()
 
     // write request first line
     char line[HTTP_HEADER_MAX_SIZE];
-    const char *req_version = "HTTP/1.0";
+    const char *req_version = "HTTP/1.1";
     snprintf(line, sizeof(line), "%s %s %s\r\n", m_method_map[m_method], m_uri, req_version);
     if (http_client->chunk_write(line, strlen(line)) != 0)
     {
@@ -140,7 +140,10 @@ int CHttpConnection::on_server_data(char *buf, int size)
 {
     // ingore more data
     if (m_recv_state == RECV_STATE_DONE)
-        return 0;
+    {
+        //LOG_INFO("still trans after done, %s", buf);
+        return -1;
+    }
 
     if (m_recv_state == RECV_STATE_HEADER)
     {
@@ -224,7 +227,9 @@ int CHttpConnection::on_client_data(char *buf, int size)
 int CHttpConnection::manage(int sock, int status)
 {
     if (m_child_connection && m_child_connection->get_sock() == sock)
+    {
         m_child_connection = NULL;
+    }
 
     return 0;
 }
