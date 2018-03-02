@@ -32,7 +32,7 @@ libs:
 	for i in $(SUBDIRS); do make -C $$i all; done
 
 $(TARGET): $(OBJ) $(STATICLIBS)
-	$(GXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
+	$(GXX) $(LDFLAGS) $^ $(LDLIBS) -o$@
 
 include $(DEP)
 

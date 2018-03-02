@@ -69,11 +69,21 @@ int CHttpConnection::server_req_done()
         LOG_WARN("no host field, uri: %s", m_uri);
         return -1;
     }
+
+    int port = 80;
+    std::string raw_host = m_req_header["Host"];
+    const char *host = raw_host.c_str();
+    size_t pos = raw_host.find(':');
+    if (pos != std::string::npos)
+    {
+        host = raw_host.substr(0, pos).c_str();
+        port = atoi(raw_host.substr(pos).c_str());
+    }
     
     sockaddr_in addr;
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(80);
-    addr.sin_addr.s_addr = CUtility::host2randip(m_req_header["Host"].c_str());
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = CUtility::host2randip(host);
     CHttpConnection *http_client = new CHttpConnection(&addr, TCP_CONN_TYPE_CLIENT, this);
     if (!http_client)
     {
@@ -128,7 +138,7 @@ int CHttpConnection::server_req_done()
 
     if (http_client->start(m_multi_plexer) != 0)
     {
-        LOG_WARN("http client start error, errno: %d, uri: %s", errno, m_uri);
+        LOG_WARN("http client start error, errno: %d, host: %s, port: %d uri: %s", errno, host, port, m_uri);
         delete http_client;
         return -1;
     }
