@@ -72,18 +72,18 @@ int CHttpConnection::server_req_done()
 
     int port = 80;
     std::string raw_host = m_req_header["Host"];
-    const char *host = raw_host.c_str();
+    std::string host = raw_host;
     size_t pos = raw_host.find(':');
     if (pos != std::string::npos)
     {
-        host = raw_host.substr(0, pos).c_str();
-        port = atoi(raw_host.substr(pos).c_str());
+        host = raw_host.substr(0, pos);
+        port = atoi(raw_host.substr(pos + 1).c_str());
     }
     
     sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = CUtility::host2randip(host);
+    addr.sin_addr.s_addr = CUtility::host2randip(host.c_str());
     CHttpConnection *http_client = new CHttpConnection(&addr, TCP_CONN_TYPE_CLIENT, this);
     if (!http_client)
     {
@@ -138,7 +138,7 @@ int CHttpConnection::server_req_done()
 
     if (http_client->start(m_multi_plexer) != 0)
     {
-        LOG_WARN("http client start error, errno: %d, host: %s, port: %d uri: %s", errno, host, port, m_uri);
+        LOG_WARN("http client start error, errno: %d, raw_host: %s, host: %s, port: %d uri: %s", errno, raw_host.c_str(), host.c_str(), port, m_uri);
         delete http_client;
         return -1;
     }
