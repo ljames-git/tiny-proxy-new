@@ -88,6 +88,16 @@ int CTcpServer::send_client_sock(int sock)
     return ret;
 }
 
+int CTcpServer::before_read()
+{
+    return 0;
+}
+
+int CTcpServer::before_write()
+{
+    return 0;
+}
+
 int CTcpServer::handle_read(IIoHandler **h)
 {
     struct sockaddr_in client_address;  

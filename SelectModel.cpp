@@ -147,6 +147,18 @@ int CSelectModel::run()
                     }
                     else
                     {
+                        ret = handler->before_read();
+                        if (ret < 0)
+                        {
+                            close(fd);
+                            clear_fd(fd);
+                            delete handler;
+                        }
+                        else if (ret > 0)
+                        {
+                            goto CODE_WRITE;
+                        }
+
                         IIoHandler *h = NULL;
                         ret = handler->handle_read(&h);
                         if (ret < 0)
@@ -163,6 +175,7 @@ int CSelectModel::run()
                     }
                 }
 
+CODE_WRITE:
                 if (FD_ISSET(fd, &wset))
                 {
                     IIoHandler *handler = m_handlers[fd];
@@ -171,6 +184,18 @@ int CSelectModel::run()
                         // fd might be closed by other threads
                         close(fd);
                         clear_fd(fd);
+                        continue;
+                    }
+
+                    ret = handler->before_write();
+                    if (ret < 0)
+                    {
+                        close(fd);
+                        clear_fd(fd);
+                        delete handler;
+                    }
+                    else if (ret > 0)
+                    {
                         continue;
                     }
 

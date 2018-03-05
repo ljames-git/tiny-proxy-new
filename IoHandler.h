@@ -4,6 +4,8 @@
 class IIoHandler
 {
 public:
+    virtual int before_read() = 0;
+    virtual int before_write() = 0;
     virtual int handle_read(IIoHandler **h = NULL) = 0;
     virtual int handle_write(IIoHandler **h = NULL) = 0;
     virtual int handle_error() = 0;

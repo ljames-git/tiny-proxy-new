@@ -343,6 +343,7 @@ CHttpConnection *CHttpConnection::instance_from_sock(int sock, int type, IMultiP
             conn->m_type = type;
             conn->m_addr_info = sock_addr;
             conn->m_multi_plexer = multi_plexer;
+            conn->m_conn_state = TCP_CONN_STATE_CONNECTED;
         }
     }
 

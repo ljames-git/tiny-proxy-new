@@ -23,6 +23,16 @@ public:
 
 public:
     // implementation of IIoHandler
+    
+    // > 0: OK, but must not call handle_read
+    // == 0: OK, continue to handle_read
+    // < 0: error
+    virtual int before_read();
+
+    // > 0: OK, but must not call handle_write
+    // == 0: OK, continue to handle_write
+    // < 0: error
+    virtual int before_write();
 
     // 0: OK, other: remove sock
     virtual int handle_read(IIoHandler **h = NULL);

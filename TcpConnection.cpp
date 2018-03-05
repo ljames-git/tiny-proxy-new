@@ -9,6 +9,7 @@
 CTcpConnection::CTcpConnection():
     m_sock(-1),
     m_type(TCP_CONN_TYPE_NONE),
+    m_conn_state(TCP_CONN_STATE_DISCONNECTED),
     m_multi_plexer(NULL)
 {
     memset(&m_addr_info, 0, sizeof(m_addr_info));
@@ -17,6 +18,7 @@ CTcpConnection::CTcpConnection():
 CTcpConnection::CTcpConnection(sockaddr_in *addr_info, int type, IMultiPlexer *multi_plexer):
     m_sock(-1),
     m_type(TCP_CONN_TYPE_NONE),
+    m_conn_state(TCP_CONN_STATE_DISCONNECTED),
     m_multi_plexer(multi_plexer),
     m_addr_info(*addr_info)
 {
@@ -85,6 +87,16 @@ int CTcpConnection::chunk_write(void *data, int size, int last)
     return 0;
 }
 
+int CTcpConnection::before_read()
+{
+    return 0;
+}
+
+int CTcpConnection::before_write()
+{
+    return 0;
+}
+
 int CTcpConnection::handle_read(IIoHandler **h)
 {
     for (;;)
@@ -116,6 +128,23 @@ int CTcpConnection::handle_read(IIoHandler **h)
 
 int CTcpConnection::handle_write(IIoHandler **h)
 {
+    if (m_conn_state == TCP_CONN_STATE_DISCONNECTED)
+    {
+        int error;
+        socklen_t err_len;
+        if (getsockopt(m_sock, SOL_SOCKET, SO_ERROR, &error, &err_len) == -1)
+        {
+            LOG_WARN("connect failed on sock: %d", m_sock);
+            return -1;
+        }
+
+        m_conn_state = TCP_CONN_STATE_CONNECTED;
+        if (on_connected() < 0)
+        {
+            return -1;
+        }
+    }
+
     if (m_chunk_queue.size() <= 0)
     {
         m_multi_plexer->clear_write_fd(m_sock);
@@ -179,6 +208,11 @@ int CTcpConnection::write_done()
     return 0;
 }
 
+int CTcpConnection::on_connected()
+{
+    return 0;
+}
+
 CTcpConnection *CTcpConnection::instance_from_sock(int sock, int type, IMultiPlexer *multi_plexer)
 {
     CTcpConnection *conn = NULL;
@@ -194,6 +228,7 @@ CTcpConnection *CTcpConnection::instance_from_sock(int sock, int type, IMultiPle
             conn->m_type = type;
             conn->m_addr_info = sock_addr;
             conn->m_multi_plexer = multi_plexer;
+            conn->m_conn_state = TCP_CONN_STATE_CONNECTED;
         }
     }
 

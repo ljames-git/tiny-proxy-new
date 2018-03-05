@@ -8,7 +8,7 @@ CINCLUDE := -I. -Ilibcurl/include
 CFLAGS := -g -c -Wall -O0 $(CINCLUDE)
 MACROS := -DOPEN_LOG_INFO
 LDFLAGS := 
-LDLIBS := -lpthread
+LDLIBS := -lpthread -lssl
 SUBDIRS := $(shell ls -F | grep /$$ | sed 's/\///g')
 STATICLIBS := $(foreach n, $(SUBDIRS), $(n)/$(n).a)
 
