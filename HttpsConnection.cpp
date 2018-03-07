@@ -159,6 +159,7 @@ int CHttpsConnection::do_ssl_read()
                 LOG_DEBUG("https read error, sock: %d", m_sock);
                 return -1;
             }
+            return 0;
         }
 
         if (m_type == TCP_CONN_TYPE_SERVER && on_server_data(m_read_buf, nread))
@@ -166,6 +167,13 @@ int CHttpsConnection::do_ssl_read()
 
         if (m_type == TCP_CONN_TYPE_CLIENT && on_client_data(m_read_buf, nread))
             return -1;
+        /*
+        char *b = new char[nread + 1];
+        memcpy(b, m_read_buf, nread);
+        b[nread] = 0;
+        fprintf(stderr, "%s", b);
+        delete []b;
+        */
     }
 
     return 0;
@@ -206,6 +214,7 @@ int CHttpsConnection::do_ssl_write()
                         LOG_DEBUG("https write error, sock: %d", m_sock);
                         return -1;
                 }
+                return 0;
             }
 
             chunk_data->m_offset += nwrite;

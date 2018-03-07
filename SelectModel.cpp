@@ -153,6 +153,7 @@ int CSelectModel::run()
                             close(fd);
                             clear_fd(fd);
                             delete handler;
+                            continue;
                         }
                         else if (ret > 0)
                         {
@@ -193,6 +194,7 @@ CODE_WRITE:
                         close(fd);
                         clear_fd(fd);
                         delete handler;
+                        continue;
                     }
                     else if (ret > 0)
                     {

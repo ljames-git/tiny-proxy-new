@@ -61,7 +61,17 @@ int CTcpConnection::start(IMultiPlexer *multi_plexer)
     int flags = fcntl(m_sock, F_GETFL, 0);
     fcntl(m_sock, F_SETFL, flags|O_NONBLOCK);
 
-    if (connect(m_sock, (const sockaddr *)&m_addr_info, sizeof(m_addr_info)) < 0 && errno != EINPROGRESS)
+    int r = connect(m_sock, (const sockaddr *)&m_addr_info, sizeof(m_addr_info));
+    if (r == 0)
+    {
+        m_conn_state = TCP_CONN_STATE_CONNECTED;
+        if (on_connected() < 0)
+        {
+            return -1;
+        }
+    }
+
+    if (r < 0 && errno != EINPROGRESS)
         return -1;
 
     m_multi_plexer->set_write_fd(m_sock, this);
@@ -96,6 +106,7 @@ int CTcpConnection::before_write()
 {
     if (m_conn_state == TCP_CONN_STATE_DISCONNECTED)
     {
+        /*
         int error;
         socklen_t err_len;
         if (getsockopt(m_sock, SOL_SOCKET, SO_ERROR, &error, &err_len) == -1)
@@ -103,6 +114,7 @@ int CTcpConnection::before_write()
             LOG_WARN("connect failed on sock: %d", m_sock);
             return -1;
         }
+        */
 
         m_conn_state = TCP_CONN_STATE_CONNECTED;
         if (on_connected() < 0)
