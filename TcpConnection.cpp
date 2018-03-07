@@ -94,6 +94,23 @@ int CTcpConnection::before_read()
 
 int CTcpConnection::before_write()
 {
+    if (m_conn_state == TCP_CONN_STATE_DISCONNECTED)
+    {
+        int error;
+        socklen_t err_len;
+        if (getsockopt(m_sock, SOL_SOCKET, SO_ERROR, &error, &err_len) == -1)
+        {
+            LOG_WARN("connect failed on sock: %d", m_sock);
+            return -1;
+        }
+
+        m_conn_state = TCP_CONN_STATE_CONNECTED;
+        if (on_connected() < 0)
+        {
+            return -1;
+        }
+    }
+
     return 0;
 }
 
@@ -128,23 +145,6 @@ int CTcpConnection::handle_read(IIoHandler **h)
 
 int CTcpConnection::handle_write(IIoHandler **h)
 {
-    if (m_conn_state == TCP_CONN_STATE_DISCONNECTED)
-    {
-        int error;
-        socklen_t err_len;
-        if (getsockopt(m_sock, SOL_SOCKET, SO_ERROR, &error, &err_len) == -1)
-        {
-            LOG_WARN("connect failed on sock: %d", m_sock);
-            return -1;
-        }
-
-        m_conn_state = TCP_CONN_STATE_CONNECTED;
-        if (on_connected() < 0)
-        {
-            return -1;
-        }
-    }
-
     if (m_chunk_queue.size() <= 0)
     {
         m_multi_plexer->clear_write_fd(m_sock);

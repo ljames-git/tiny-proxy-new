@@ -18,12 +18,18 @@ public:
     virtual int on_connected();
 
     int handshake();
+    int do_ssl_read();
+    int do_ssl_write();
 
 public:
     virtual int before_read();
     virtual int before_write();
+    virtual int handle_read(IIoHandler **h);
+    virtual int handle_write(IIoHandler **h);
 
 private:
+    int m_write_in_read;
+    int m_read_in_write;
     SSL *m_ssl_handle;
     SSL_CTX *m_ssl_context;
 };
