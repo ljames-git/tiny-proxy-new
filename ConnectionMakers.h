@@ -3,6 +3,7 @@
 
 #include "TcpConnection.h"
 #include "HttpConnection.h"
+#include "HttpsConnection.h"
 #include "ConnectionFactory.h"
 
 class CTcpConnectionFactory: public IConnectionFactory
@@ -20,6 +21,15 @@ public:
     virtual IIoHandler *create(int sock, int type, IMultiPlexer *multi_plexer)
     {
         return CHttpConnection::instance_from_sock(sock, type, multi_plexer);
+    }
+};
+
+class CHttpsConnectionFactory: public IConnectionFactory
+{
+public:
+    virtual IIoHandler *create(int sock, int type, IMultiPlexer *multi_plexer)
+    {
+        return CHttpsConnection::instance_from_sock(sock, type, multi_plexer);
     }
 };
 

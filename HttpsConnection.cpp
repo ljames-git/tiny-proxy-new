@@ -111,7 +111,7 @@ int CHttpsConnection::handshake()
     {
         m_multi_plexer->set_read_fd(m_sock, this);
         m_multi_plexer->set_write_fd(m_sock, this);
-        m_conn_state = HTTPS_CONN_CONNECTED;
+        m_conn_state = HTTPS_CONN_STATE_CONNECTED;
         return 0;
     }
 
@@ -235,4 +235,32 @@ int CHttpsConnection::do_ssl_write()
     }
 
     return 0;
+}
+
+CHttpsConnection *CHttpsConnection::instance_from_sock(int sock, int type, IMultiPlexer *multi_plexer)
+{
+    CHttpsConnection *conn = NULL;
+
+
+    sockaddr_in sock_addr;
+    socklen_t sock_len;
+    if (getpeername(sock, (sockaddr *)&sock_addr, &sock_len) == 0 && multi_plexer && (type == TCP_CONN_TYPE_SERVER || type == TCP_CONN_TYPE_CLIENT))
+    {
+        conn = new CHttpsConnection;
+        if (conn)
+        {
+            conn->m_sock = sock;
+            conn->m_type = type;
+            conn->m_addr_info = sock_addr;
+            conn->m_multi_plexer = multi_plexer;
+            conn->m_conn_state = HTTPS_CONN_STATE_CONNECTED;
+            if (conn->on_connected() < 0)
+            {
+                delete conn;
+                return NULL;
+            }
+        }
+    }
+
+    return conn;
 }

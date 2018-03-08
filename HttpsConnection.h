@@ -6,7 +6,7 @@
 
 #include "HttpConnection.h"
 
-#define HTTPS_CONN_CONNECTED 2
+#define HTTPS_CONN_STATE_CONNECTED 2
 
 class CHttpsConnection: public CHttpConnection
 {
@@ -21,6 +21,7 @@ public:
     int do_ssl_read();
     int do_ssl_write();
 
+    static CHttpsConnection *instance_from_sock(int sock, int type, IMultiPlexer *multi_plexer);
 public:
     virtual int before_read();
     virtual int before_write();

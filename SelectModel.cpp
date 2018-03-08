@@ -170,7 +170,7 @@ int CSelectModel::run()
                         }
                         else if (ret > 0)
                         {
-                            if (h && set_read_fd(ret, h) != 0)
+                            if (h && (set_read_fd(ret, h) != 0 || set_write_fd(ret, h) != 0))
                                 delete h;
                         }
                     }
