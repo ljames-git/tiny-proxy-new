@@ -93,6 +93,24 @@ int CHttpConnection::server_req_done()
 
     m_child_connection = http_client;
 
+    if (m_method == HTTP_METHOD_CONNECT)
+    {
+        char res[] = "HTTP/1.1 200 Connection Established\r\n\r\n";
+        if (chunk_write(res, strlen(res)) < 0)
+        {
+            delete http_client;
+            return -1;
+        }
+
+        if (http_client->start(m_multi_plexer) != 0)
+        {
+            LOG_WARN("http client start error, errno: %d, raw_host: %s, host: %s, port: %d uri: %s", errno, raw_host.c_str(), host.c_str(), port, m_uri);
+            delete http_client;
+            return -1;
+        }
+        return 0;
+    }
+
     // write request first line
     char line[HTTP_HEADER_MAX_SIZE];
     const char *req_version = "HTTP/1.1";
@@ -154,6 +172,11 @@ int CHttpConnection::on_server_data(char *buf, int size)
         //LOG_INFO("still trans after done, %s", buf);
         
         // disable keep-alive
+        if (m_method == HTTP_METHOD_CONNECT && m_child_connection)
+        {
+            return m_child_connection->chunk_write(buf, size);
+        }
+
         return -1;
     }
 
@@ -171,21 +194,6 @@ int CHttpConnection::on_server_data(char *buf, int size)
 
     if (m_recv_state == RECV_STATE_BODY)
     {
-        if (m_method == HTTP_METHOD_CONNECT)
-        {
-            m_recv_state = RECV_STATE_HEADER;
-            m_header_size = 0;
-            m_header_received = 0;
-            m_header_item_offset = 0;
-            m_body_offset = 0;
-            m_method = HTTP_METHOD_NONE;
-            m_body_size = 0;
-            m_child_connection = NULL;
-            m_body = NULL;
-            char res[] = "HTTP/1.1 200 Connection Established\r\n\r\n";
-            return chunk_write(res, strlen(res));
-        }
-
         int content_length = 0;
         if (m_req_header.find("Content-Length") != m_req_header.end())
         {
